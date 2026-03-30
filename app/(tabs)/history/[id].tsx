@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useSession } from '@/hooks/queries/use-workouts';
 import { WorkoutSet } from '@/types';
+import { WorkoutShareModal } from '@/components/workout/workout-share-modal';
 
 function groupSetsByExercise(sets: WorkoutSet[]) {
   const map = new Map<number, WorkoutSet[]>();
@@ -36,6 +37,7 @@ export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: session, isLoading } = useSession(id);
+  const [shareVisible, setShareVisible] = useState(false);
 
   if (isLoading) {
     return (
@@ -58,7 +60,17 @@ export default function SessionDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
         </TouchableOpacity>
         <Text style={[typography.titleMd, { color: colors.onSurface }]}>Detalle</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          onPress={() => setShareVisible(true)}
+          style={styles.shareBtn}
+          disabled={!session || sets.length === 0}
+        >
+          <Ionicons
+            name="share-outline"
+            size={22}
+            color={sets.length > 0 ? colors.primaryContainer : colors.outlineVariant}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -116,6 +128,14 @@ export default function SessionDetailScreen() {
           </Text>
         )}
       </ScrollView>
+
+      {session && (
+        <WorkoutShareModal
+          visible={shareVisible}
+          onClose={() => setShareVisible(false)}
+          session={session as any}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -128,6 +148,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     paddingHorizontal: 24,
+  },
+  shareBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceHighest,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: { padding: 24, paddingTop: 0, gap: 24 },
   hero: {
