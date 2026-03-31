@@ -89,7 +89,7 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
 
         const fileUri = (FileSystem.cacheDirectory ?? '') + 'spotter-story.jpg';
         await FileSystem.writeAsStringAsync(fileUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64',
         });
         await Sharing.shareAsync(fileUri, {
           mimeType: 'image/jpeg',
