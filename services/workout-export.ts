@@ -527,3 +527,134 @@ export async function shareWorkoutAsStory(session: SessionInput): Promise<void> 
     UTI: 'com.adobe.pdf',
   });
 }
+
+// ─── Canvas-based story image (JPEG 1080×1920) ───────────────────────────────
+
+export function buildStoryExportData(session: SessionInput): WorkoutExportData {
+  return buildStoryData(session);
+}
+
+export function generateStoryCanvasHtml(data: WorkoutExportData): string {
+  // Serialize data safely as JSON embedded in the script
+  const json = JSON.stringify({
+    routineName: data.routineName,
+    date: data.date,
+    duration: data.duration,
+    totalVolume: data.totalVolume,
+    exercises: data.exercises.map((ex) => ({
+      name: ex.name,
+      sets: ex.sets.map((s) => ({ weight_kg: s.weight_kg, reps: s.reps })),
+    })),
+  });
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#000;overflow:hidden">
+<canvas id="c" width="1080" height="1920" style="display:block"></canvas>
+<script>
+(function(){
+  try {
+    var data = ${json};
+    var canvas = document.getElementById('c');
+    var ctx = canvas.getContext('2d');
+    var W = 1080, H = 1920, P = 72;
+
+    function rr(x,y,w,h,r){
+      ctx.beginPath();
+      ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+      ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+      ctx.lineTo(x+w,y+h-r);
+      ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+      ctx.lineTo(x+r,y+h);
+      ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+      ctx.lineTo(x,y+r);
+      ctx.quadraticCurveTo(x,y,x+r,y);
+      ctx.closePath();
+    }
+
+    function trunc(text, maxW){
+      if(ctx.measureText(text).width <= maxW) return text;
+      while(text.length > 0 && ctx.measureText(text+'…').width > maxW) text = text.slice(0,-1);
+      return text+'…';
+    }
+
+    // 1. Background
+    ctx.fillStyle='#0e0e0e'; ctx.fillRect(0,0,W,H);
+
+    // 2. Top accent bar
+    ctx.fillStyle='#d1fc00'; ctx.fillRect(0,0,W,6);
+
+    // 3. Header
+    ctx.fillStyle='#d1fc00'; rr(P,90,52,52,12); ctx.fill();
+    ctx.fillStyle='#d1fc00'; ctx.font='bold 44px Arial';
+    ctx.textBaseline='middle'; ctx.textAlign='left';
+    ctx.fillText('SPOTTER', P+72, 116);
+    ctx.fillStyle='#adaaaa'; ctx.font='32px Arial';
+    ctx.textAlign='right';
+    ctx.fillText(data.date, W-P, 116);
+
+    // 4. Hero card
+    ctx.fillStyle='#1a1a1a'; rr(P,196,W-P*2,460,32); ctx.fill();
+    ctx.fillStyle='#ffffff'; ctx.font='bold 78px Arial';
+    ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText(trunc(data.routineName, W-P*2-80), P+40, 238);
+
+    // Stats
+    var sY=430;
+    ctx.fillStyle='#00e3fd'; ctx.font='bold 68px Arial'; ctx.textBaseline='top';
+    ctx.fillText(data.duration, P+40, sY);
+    ctx.fillStyle='#adaaaa'; ctx.font='bold 26px Arial';
+    ctx.fillText('DURACIÓN', P+40, sY+82);
+
+    ctx.fillStyle='#2c2c2c'; ctx.fillRect(P+40+252,sY-8,2,96);
+
+    var volX=P+40+270;
+    var volT=Math.round(data.totalVolume).toLocaleString('es-AR')+' kg';
+    ctx.fillStyle='#d1fc00'; ctx.font='bold 68px Arial'; ctx.textBaseline='top';
+    ctx.fillText(volT, volX, sY);
+    ctx.fillStyle='#adaaaa'; ctx.font='bold 26px Arial';
+    ctx.fillText('VOLUMEN', volX, sY+82);
+
+    // 5. Exercises
+    var exY=720, exH=104, exGap=12;
+    var vis=data.exercises.slice(0,4);
+    vis.forEach(function(ex,i){
+      var y=exY+i*(exH+exGap);
+      ctx.fillStyle='#1a1a1a'; rr(P,y,W-P*2,exH,18); ctx.fill();
+      ctx.fillStyle='#262626'; rr(P+16,y+22,52,52,10); ctx.fill();
+      ctx.fillStyle='#adaaaa'; ctx.font='bold 30px Arial';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(i+1), P+42, y+48);
+      ctx.fillStyle='#ffffff'; ctx.font='bold 40px Arial';
+      ctx.textAlign='left';
+      ctx.fillText(trunc(ex.name, W-P*2-300), P+88, y+48);
+      var top=ex.sets.slice().sort(function(a,b){return b.weight_kg-a.weight_kg;})[0];
+      var sum=top ? ex.sets.length+'×'+top.reps+' — '+top.weight_kg+'kg' : ex.sets.length+' series';
+      ctx.fillStyle='#adaaaa'; ctx.font='36px Arial';
+      ctx.textAlign='right';
+      ctx.fillText(sum, W-P-16, y+48);
+    });
+
+    var hidden=data.exercises.length-vis.length;
+    if(hidden>0){
+      var mY=exY+vis.length*(exH+exGap)+28;
+      ctx.fillStyle='#767575'; ctx.font='32px Arial';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('+'+hidden+' ejercicio'+(hidden>1?'s':'')+' más', W/2, mY);
+    }
+
+    // 6. Footer
+    ctx.fillStyle='#d1fc00'; rr(W/2-64,1830,128,6,3); ctx.fill();
+    ctx.fillStyle='#484847'; ctx.font='bold 28px Arial';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('ENTRENADO CON SPOTTER', W/2, 1876);
+
+    var jpg=canvas.toDataURL('image/jpeg',0.92);
+    window.ReactNativeWebView.postMessage(JSON.stringify({ok:true,data:jpg}));
+  } catch(e) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ok:false,error:String(e)}));
+  }
+})();
+</script>
+</body></html>`;
+}

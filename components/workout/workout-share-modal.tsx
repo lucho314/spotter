@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,18 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
+import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import Toast from 'react-native-toast-message';
 
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import { shareWorkoutAsPdf, shareWorkoutAsStory } from '@/services/workout-export';
+import {
+  shareWorkoutAsPdf,
+  buildStoryExportData,
+  generateStoryCanvasHtml,
+} from '@/services/workout-export';
 
 interface ShareModalSession {
   started_at: string;
@@ -39,6 +46,8 @@ interface WorkoutShareModalProps {
 export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareModalProps) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingStory, setLoadingStory] = useState(false);
+  const [storyHtml, setStoryHtml] = useState<string | null>(null);
+  const processingRef = useRef(false);
 
   const handleSharePdf = async () => {
     setLoadingPdf(true);
@@ -52,17 +61,46 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
     }
   };
 
-  const handleShareStory = async () => {
+  const handleShareStory = () => {
+    if (processingRef.current) return;
+    processingRef.current = true;
     setLoadingStory(true);
-    try {
-      await shareWorkoutAsStory(session);
-      onClose();
-    } catch {
-      Toast.show({ type: 'error', text1: 'Error al generar la imagen' });
-    } finally {
-      setLoadingStory(false);
-    }
+    // Build canvas HTML and mount WebView — result comes via onMessage
+    const data = buildStoryExportData(session);
+    setStoryHtml(generateStoryCanvasHtml(data));
   };
+
+  const handleWebViewMessage = useCallback(
+    async (event: WebViewMessageEvent) => {
+      setStoryHtml(null); // unmount WebView
+      try {
+        const payload = JSON.parse(event.nativeEvent.data) as
+          | { ok: true; data: string }
+          | { ok: false; error: string };
+
+        if (!payload.ok) throw new Error(payload.error);
+
+        // Strip the data URL prefix to get raw base64
+        const base64 = payload.data.replace(/^data:image\/jpeg;base64,/, '');
+        const fileUri = FileSystem.cacheDirectory + 'spotter-story.jpg';
+        await FileSystem.writeAsStringAsync(fileUri, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'image/jpeg',
+          dialogTitle: 'Compartir historia',
+          UTI: 'public.jpeg',
+        });
+        onClose();
+      } catch {
+        Toast.show({ type: 'error', text1: 'Error al generar la imagen' });
+      } finally {
+        setLoadingStory(false);
+        processingRef.current = false;
+      }
+    },
+    [onClose]
+  );
 
   return (
     <Modal
@@ -75,6 +113,17 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay} />
       </TouchableWithoutFeedback>
+
+      {/* Hidden WebView for canvas rendering — off-screen */}
+      {storyHtml ? (
+        <WebView
+          source={{ html: storyHtml }}
+          style={styles.hiddenWebView}
+          onMessage={handleWebViewMessage}
+          scrollEnabled={false}
+          javaScriptEnabled
+        />
+      ) : null}
 
       <View style={styles.sheet}>
         <View style={styles.handle} />
@@ -111,7 +160,12 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
             <Text style={[typography.titleMd, { color: colors.onSurface, marginTop: 12 }]}>
               PDF Detallado
             </Text>
-            <Text style={[typography.labelSm, { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 }]}>
+            <Text
+              style={[
+                typography.labelSm,
+                { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 },
+              ]}
+            >
               Todos los sets,{'\n'}volumen y estadísticas
             </Text>
           </TouchableOpacity>
@@ -133,8 +187,13 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
             <Text style={[typography.titleMd, { color: colors.onSurface, marginTop: 12 }]}>
               Historia
             </Text>
-            <Text style={[typography.labelSm, { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 }]}>
-              Optimizado para{'\n'}compartir en redes
+            <Text
+              style={[
+                typography.labelSm,
+                { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 },
+              ]}
+            >
+              Imagen JPG 1080×1920{'\n'}para Instagram
             </Text>
           </TouchableOpacity>
         </View>
@@ -147,6 +206,15 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  // WebView off-screen but with actual dimensions so canvas renders
+  hiddenWebView: {
+    position: 'absolute',
+    top: -1920,
+    left: 0,
+    width: 1080,
+    height: 1920,
+    opacity: 0,
   },
   sheet: {
     backgroundColor: colors.surfaceContainer,
