@@ -123,6 +123,30 @@ export async function addWorkoutSet(payload: {
   return data;
 }
 
+export async function getLastSetsForExercise(
+  userId: string,
+  exerciseId: number
+): Promise<{ session_date: string; sets: { set_number: number; weight_kg: number; reps: number }[] } | null> {
+  const { data, error } = await supabase
+    .from('workout_sets')
+    .select('set_number, weight_kg, reps, workout_sessions!inner(started_at, user_id)')
+    .eq('workout_sessions.user_id', userId)
+    .eq('exercise_id', exerciseId)
+    .order('workout_sessions(started_at)', { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  // Agrupar por sesión más reciente
+  const latestDate = (data[0] as any).workout_sessions.started_at as string;
+  const sets = data
+    .filter((s: any) => s.workout_sessions.started_at === latestDate)
+    .map((s: any) => ({ set_number: s.set_number, weight_kg: s.weight_kg, reps: s.reps }))
+    .sort((a: any, b: any) => a.set_number - b.set_number);
+
+  return { session_date: latestDate, sets };
+}
+
 export async function getInProgressSession(userId: string): Promise<WorkoutSession | null> {
   const { data, error } = await supabase
     .from('workout_sessions')

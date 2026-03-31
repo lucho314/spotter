@@ -8,6 +8,7 @@ import {
   updateWorkoutSet,
   deleteWorkoutSet,
   addWorkoutSet,
+  getLastSetsForExercise,
   getSessions,
   getSessionById,
 } from '@/services/workouts';
@@ -70,6 +71,15 @@ export function useDeleteSession() {
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['profile-stats'] });
     },
+  });
+}
+
+export function useLastSetsForExercise(userId: string | null, exerciseId: number | null) {
+  return useQuery({
+    queryKey: ['last-sets', userId, exerciseId],
+    queryFn: () => getLastSetsForExercise(userId!, exerciseId!),
+    enabled: !!userId && !!exerciseId,
+    staleTime: 1000 * 60 * 5,
   });
 }
 

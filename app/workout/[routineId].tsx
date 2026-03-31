@@ -18,6 +18,7 @@ import Toast from 'react-native-toast-message';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Button } from '@/components/ui/button';
+import { LastSessionModal } from '@/components/workout/last-session-modal';
 import { SessionTimer } from '@/components/workout/session-timer';
 import { RestTimer } from '@/components/workout/rest-timer';
 import { SetRow } from '@/components/workout/set-row';
@@ -47,6 +48,7 @@ export default function WorkoutScreen() {
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [restSeconds, setRestSeconds] = useState(90);
   const [saving, setSaving] = useState(false);
+  const [showLastSession, setShowLastSession] = useState(false);
 
   const {
     sessionId,
@@ -213,9 +215,17 @@ export default function WorkoutScreen() {
           <Text style={[typography.labelSm, { color: colors.onSurfaceVariant, letterSpacing: 2 }]}>
             EJERCICIO {currentExerciseIndex + 1} DE {exercises.length}
           </Text>
-          <Text style={[typography.headlineSm, { color: colors.onSurface }]}>
-            {currentExercise.routine_exercise.exercises?.name ?? 'Ejercicio'}
-          </Text>
+          <View style={styles.exerciseTitleRow}>
+            <Text style={[typography.headlineSm, { color: colors.onSurface, flex: 1 }]}>
+              {currentExercise.routine_exercise.exercises?.name ?? 'Ejercicio'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowLastSession(true)}
+              style={styles.historyBtn}
+            >
+              <Ionicons name="time-outline" size={18} color={colors.secondary} />
+            </TouchableOpacity>
+          </View>
           <Text style={[typography.bodyMd, { color: colors.secondary }]}>
             {currentExercise.routine_exercise.target_sets} series ×{' '}
             {currentExercise.routine_exercise.target_reps} reps
@@ -291,6 +301,13 @@ export default function WorkoutScreen() {
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
+
+      <LastSessionModal
+        visible={showLastSession}
+        onClose={() => setShowLastSession(false)}
+        exerciseId={currentExercise.routine_exercise.exercise_id}
+        exerciseName={currentExercise.routine_exercise.exercises?.name ?? 'Ejercicio'}
+      />
     </SafeAreaView>
   );
 }
@@ -322,6 +339,15 @@ const styles = StyleSheet.create({
   },
   content: { padding: 24, gap: 24 },
   exerciseHeader: { gap: 8 },
+  exerciseTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  historyBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,227,253,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   exerciseGif: {
     width: '100%',
     height: 200,
