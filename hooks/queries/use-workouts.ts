@@ -95,7 +95,7 @@ export function useDeleteWorkoutSet(sessionId: string) {
   return useMutation({
     mutationFn: (id: string) => deleteWorkoutSet(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+      qc.refetchQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
   });
 }
@@ -106,7 +106,7 @@ export function useAddWorkoutSet(sessionId: string) {
     mutationFn: (payload: { session_id: string; exercise_id: number; set_number: number; weight_kg: number; reps: number }) =>
       addWorkoutSet(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+      qc.refetchQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
   });
 }
