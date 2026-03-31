@@ -114,7 +114,7 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
         <Stack.Screen name="workout" options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name="import" />
-        <Stack.Screen name="exercise" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="exercise/[id]" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style="light" />
       <Toast />
