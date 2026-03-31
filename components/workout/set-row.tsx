@@ -12,9 +12,10 @@ interface SetRowProps {
   onWeightChange: (value: string) => void;
   onRepsChange: (value: string) => void;
   onComplete: () => void;
+  onUncomplete: () => void;
 }
 
-export function SetRow({ set, index, onWeightChange, onRepsChange, onComplete }: SetRowProps) {
+export function SetRow({ set, index, onWeightChange, onRepsChange, onComplete, onUncomplete }: SetRowProps) {
   // Local state avoids the controlled TextInput flicker caused by the
   // store → parent re-render cycle on every keystroke.
   const [weight, setWeight] = useState(set.weight_kg);
@@ -32,7 +33,11 @@ export function SetRow({ set, index, onWeightChange, onRepsChange, onComplete }:
 
   const handleComplete = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onComplete();
+    if (set.completed) {
+      onUncomplete();
+    } else {
+      onComplete();
+    }
   };
 
   return (
@@ -70,7 +75,6 @@ export function SetRow({ set, index, onWeightChange, onRepsChange, onComplete }:
       <TouchableOpacity
         style={[styles.checkButton, set.completed && styles.checkButtonDone]}
         onPress={handleComplete}
-        disabled={set.completed}
       >
         <Ionicons
           name={set.completed ? 'checkmark-circle' : 'checkmark-circle-outline'}

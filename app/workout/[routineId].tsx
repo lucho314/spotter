@@ -56,6 +56,7 @@ export default function WorkoutScreen() {
     startedAt,
     isActive,
     completeSet,
+    uncompleteSet,
     updateSet,
     addSet,
     setCurrentExercise,
@@ -256,6 +257,7 @@ export default function WorkoutScreen() {
               onWeightChange={(v) => updateSet(currentExerciseIndex, i, { weight_kg: v })}
               onRepsChange={(v) => updateSet(currentExerciseIndex, i, { reps: v })}
               onComplete={() => handleCompleteSet(i)}
+              onUncomplete={() => uncompleteSet(currentExerciseIndex, i)}
             />
           ))}
 

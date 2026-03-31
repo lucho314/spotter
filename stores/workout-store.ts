@@ -28,6 +28,7 @@ interface WorkoutStore {
 
   startWorkout: (routineId: string, exercises: RoutineExercise[], userId: string) => void;
   completeSet: (exerciseIndex: number, setIndex: number) => void;
+  uncompleteSet: (exerciseIndex: number, setIndex: number) => void;
   updateSet: (exerciseIndex: number, setIndex: number, data: Partial<Pick<ActiveSet, 'weight_kg' | 'reps' | 'is_warmup'>>) => void;
   addSet: (exerciseIndex: number) => void;
   setCurrentExercise: (index: number) => void;
@@ -79,6 +80,19 @@ export const useWorkoutStore = create<WorkoutStore>()(
             ...ex,
             sets: ex.sets.map((s, si) =>
               si === setIndex ? { ...s, completed: true } : s
+            ),
+          };
+        });
+        set({ exercises });
+      },
+
+      uncompleteSet: (exerciseIndex, setIndex) => {
+        const exercises = get().exercises.map((ex, ei) => {
+          if (ei !== exerciseIndex) return ex;
+          return {
+            ...ex,
+            sets: ex.sets.map((s, si) =>
+              si === setIndex ? { ...s, completed: false } : s
             ),
           };
         });
