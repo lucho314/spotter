@@ -528,7 +528,7 @@ export async function shareWorkoutAsStory(session: SessionInput): Promise<void> 
   });
 }
 
-// ─── Canvas-based story image (JPEG 1080×1920) ───────────────────────────────
+// ─── Canvas-based story image — kept for future use ──────────────────────────
 
 export function buildStoryExportData(session: SessionInput): WorkoutExportData {
   return buildStoryData(session);

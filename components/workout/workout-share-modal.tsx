@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,18 +10,11 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
-import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import Toast from 'react-native-toast-message';
 
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import {
-  shareWorkoutAsPdf,
-  buildStoryExportData,
-  generateStoryCanvasHtml,
-} from '@/services/workout-export';
+import { shareWorkoutAsPdf, shareWorkoutAsStory } from '@/services/workout-export';
 
 interface ShareModalSession {
   started_at: string;
@@ -46,68 +39,30 @@ interface WorkoutShareModalProps {
 export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareModalProps) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingStory, setLoadingStory] = useState(false);
-  const [storyHtml, setStoryHtml] = useState<string | null>(null);
-  const processingRef = useRef(false);
 
   const handleSharePdf = async () => {
     setLoadingPdf(true);
     try {
       await shareWorkoutAsPdf(session);
       onClose();
-    } catch {
+    } catch (e) {
       Toast.show({ type: 'error', text1: 'Error al generar el PDF' });
     } finally {
       setLoadingPdf(false);
     }
   };
 
-  const handleShareStory = () => {
-    if (processingRef.current) return;
-    processingRef.current = true;
+  const handleShareStory = async () => {
     setLoadingStory(true);
-    // Build canvas HTML and mount WebView — result comes via onMessage
-    const data = buildStoryExportData(session);
-    setStoryHtml(generateStoryCanvasHtml(data));
+    try {
+      await shareWorkoutAsStory(session);
+      onClose();
+    } catch (e) {
+      Toast.show({ type: 'error', text1: 'Error al generar la historia' });
+    } finally {
+      setLoadingStory(false);
+    }
   };
-
-  const handleWebViewMessage = useCallback(
-    async (event: WebViewMessageEvent) => {
-      setStoryHtml(null);
-      try {
-        const raw = event.nativeEvent.data;
-        let payload: { ok: boolean; data?: string; error?: string };
-        try {
-          payload = JSON.parse(raw);
-        } catch {
-          throw new Error('Canvas response invalid: ' + raw.slice(0, 100));
-        }
-
-        if (!payload.ok) throw new Error('Canvas error: ' + payload.error);
-
-        const base64 = (payload.data ?? '').replace(/^data:image\/jpeg;base64,/, '');
-        if (!base64) throw new Error('Canvas returned empty image');
-
-        const fileUri = (FileSystem.cacheDirectory ?? '') + 'spotter-story.jpg';
-        await FileSystem.writeAsStringAsync(fileUri, base64, {
-          encoding: 'base64',
-        });
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'image/jpeg',
-          dialogTitle: 'Compartir historia',
-          UTI: 'public.jpeg',
-        });
-        onClose();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error('[StoryShare]', msg);
-        Toast.show({ type: 'error', text1: 'Error al generar la imagen', text2: msg });
-      } finally {
-        setLoadingStory(false);
-        processingRef.current = false;
-      }
-    },
-    [onClose]
-  );
 
   return (
     <Modal
@@ -120,25 +75,6 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay} />
       </TouchableWithoutFeedback>
-
-      {/* Hidden WebView for canvas rendering — off-screen */}
-      {storyHtml ? (
-        <WebView
-          source={{ html: storyHtml }}
-          style={styles.hiddenWebView}
-          onMessage={handleWebViewMessage}
-          onError={(e) => {
-            const msg = e.nativeEvent.description ?? 'WebView error';
-            console.error('[StoryShare WebView]', msg);
-            Toast.show({ type: 'error', text1: 'Error al generar la imagen', text2: msg });
-            setStoryHtml(null);
-            setLoadingStory(false);
-            processingRef.current = false;
-          }}
-          scrollEnabled={false}
-          javaScriptEnabled
-        />
-      ) : null}
 
       <View style={styles.sheet}>
         <View style={styles.handle} />
@@ -158,7 +94,7 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
         </View>
 
         <View style={styles.optionsRow}>
-          {/* PDF */}
+          {/* PDF detallado */}
           <TouchableOpacity
             style={styles.optionCard}
             onPress={handleSharePdf}
@@ -175,12 +111,7 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
             <Text style={[typography.titleMd, { color: colors.onSurface, marginTop: 12 }]}>
               PDF Detallado
             </Text>
-            <Text
-              style={[
-                typography.labelSm,
-                { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 },
-              ]}
-            >
+            <Text style={[typography.labelSm, { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 }]}>
               Todos los sets,{'\n'}volumen y estadísticas
             </Text>
           </TouchableOpacity>
@@ -202,13 +133,8 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
             <Text style={[typography.titleMd, { color: colors.onSurface, marginTop: 12 }]}>
               Historia
             </Text>
-            <Text
-              style={[
-                typography.labelSm,
-                { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 },
-              ]}
-            >
-              Imagen JPG 1080×1920{'\n'}para Instagram
+            <Text style={[typography.labelSm, { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 }]}>
+              Tarjeta 9:16{'\n'}para redes sociales
             </Text>
           </TouchableOpacity>
         </View>
@@ -221,15 +147,6 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  // WebView off-screen but with actual dimensions so canvas renders
-  hiddenWebView: {
-    position: 'absolute',
-    top: -1920,
-    left: 0,
-    width: 1080,
-    height: 1920,
-    opacity: 0,
   },
   sheet: {
     backgroundColor: colors.surfaceContainer,
