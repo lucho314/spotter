@@ -72,17 +72,22 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
 
   const handleWebViewMessage = useCallback(
     async (event: WebViewMessageEvent) => {
-      setStoryHtml(null); // unmount WebView
+      setStoryHtml(null);
       try {
-        const payload = JSON.parse(event.nativeEvent.data) as
-          | { ok: true; data: string }
-          | { ok: false; error: string };
+        const raw = event.nativeEvent.data;
+        let payload: { ok: boolean; data?: string; error?: string };
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          throw new Error('Canvas response invalid: ' + raw.slice(0, 100));
+        }
 
-        if (!payload.ok) throw new Error(payload.error);
+        if (!payload.ok) throw new Error('Canvas error: ' + payload.error);
 
-        // Strip the data URL prefix to get raw base64
-        const base64 = payload.data.replace(/^data:image\/jpeg;base64,/, '');
-        const fileUri = FileSystem.cacheDirectory + 'spotter-story.jpg';
+        const base64 = (payload.data ?? '').replace(/^data:image\/jpeg;base64,/, '');
+        if (!base64) throw new Error('Canvas returned empty image');
+
+        const fileUri = (FileSystem.cacheDirectory ?? '') + 'spotter-story.jpg';
         await FileSystem.writeAsStringAsync(fileUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
         });
@@ -92,8 +97,10 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
           UTI: 'public.jpeg',
         });
         onClose();
-      } catch {
-        Toast.show({ type: 'error', text1: 'Error al generar la imagen' });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[StoryShare]', msg);
+        Toast.show({ type: 'error', text1: 'Error al generar la imagen', text2: msg });
       } finally {
         setLoadingStory(false);
         processingRef.current = false;
@@ -120,6 +127,14 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
           source={{ html: storyHtml }}
           style={styles.hiddenWebView}
           onMessage={handleWebViewMessage}
+          onError={(e) => {
+            const msg = e.nativeEvent.description ?? 'WebView error';
+            console.error('[StoryShare WebView]', msg);
+            Toast.show({ type: 'error', text1: 'Error al generar la imagen', text2: msg });
+            setStoryHtml(null);
+            setLoadingStory(false);
+            processingRef.current = false;
+          }}
           scrollEnabled={false}
           javaScriptEnabled
         />

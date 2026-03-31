@@ -552,12 +552,21 @@ export function generateStoryCanvasHtml(data: WorkoutExportData): string {
 <body style="margin:0;padding:0;background:#000;overflow:hidden">
 <canvas id="c" width="1080" height="1920" style="display:block"></canvas>
 <script>
+window.onerror = function(msg, src, line, col, err) {
+  window.ReactNativeWebView.postMessage(JSON.stringify({ok:false, error:'onerror: '+msg+' ('+line+':'+col+')'}));
+  return true;
+};
 (function(){
   try {
     var data = ${json};
     var canvas = document.getElementById('c');
     var ctx = canvas.getContext('2d');
     var W = 1080, H = 1920, P = 72;
+
+    // toLocaleString is unreliable in Android WebView — use manual formatter
+    function fmtNum(n) {
+      return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
 
     function rr(x,y,w,h,r){
       ctx.beginPath();
@@ -609,7 +618,7 @@ export function generateStoryCanvasHtml(data: WorkoutExportData): string {
     ctx.fillStyle='#2c2c2c'; ctx.fillRect(P+40+252,sY-8,2,96);
 
     var volX=P+40+270;
-    var volT=Math.round(data.totalVolume).toLocaleString('es-AR')+' kg';
+    var volT=fmtNum(data.totalVolume)+' kg';
     ctx.fillStyle='#d1fc00'; ctx.font='bold 68px Arial'; ctx.textBaseline='top';
     ctx.fillText(volT, volX, sY);
     ctx.fillStyle='#adaaaa'; ctx.font='bold 26px Arial';
