@@ -5,14 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import { useSession } from '@/hooks/queries/use-workouts';
+import { useSession, useUpdateWorkoutSet } from '@/hooks/queries/use-workouts';
 import { WorkoutSet } from '@/types';
 import { WorkoutShareModal } from '@/components/workout/workout-share-modal';
 
@@ -33,10 +36,97 @@ function formatDuration(start: string, end: string | null) {
   return `${Math.floor(min / 60)}h ${min % 60}min`;
 }
 
+interface EditableSetRowProps {
+  set: WorkoutSet;
+  onSave: (id: string, weight_kg: number, reps: number) => Promise<void>;
+  isSaving: boolean;
+}
+
+function EditableSetRow({ set, onSave, isSaving }: EditableSetRowProps) {
+  const [editing, setEditing] = useState(false);
+  const [weight, setWeight] = useState(String(set.weight_kg));
+  const [reps, setReps] = useState(String(set.reps));
+
+  const handleSave = async () => {
+    const w = parseFloat(weight);
+    const r = parseInt(reps, 10);
+    if (isNaN(w) || isNaN(r) || r <= 0 || w < 0) {
+      Toast.show({ type: 'error', text1: 'Valores inválidos' });
+      return;
+    }
+    await onSave(set.id, w, r);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setWeight(String(set.weight_kg));
+    setReps(String(set.reps));
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <View style={[styles.setRow, styles.setRowEditing]}>
+        <Text style={[typography.labelMd, { color: colors.onSurfaceVariant, width: 24 }]}>
+          {set.set_number}
+        </Text>
+        <TextInput
+          style={styles.editInput}
+          value={weight}
+          onChangeText={setWeight}
+          keyboardType="decimal-pad"
+          selectTextOnFocus
+        />
+        <Text style={{ color: colors.onSurfaceVariant, paddingHorizontal: 4 }}>kg ×</Text>
+        <TextInput
+          style={styles.editInput}
+          value={reps}
+          onChangeText={setReps}
+          keyboardType="number-pad"
+          selectTextOnFocus
+        />
+        <Text style={{ color: colors.onSurfaceVariant, paddingRight: 8 }}>reps</Text>
+        {isSaving ? (
+          <ActivityIndicator size="small" color={colors.primaryContainer} />
+        ) : (
+          <View style={styles.editActions}>
+            <TouchableOpacity onPress={handleSave} style={styles.actionBtn}>
+              <Ionicons name="checkmark" size={18} color={colors.primaryContainer} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleCancel} style={styles.actionBtn}>
+              <Ionicons name="close" size={18} color={colors.onSurfaceVariant} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.setRow}>
+      <Text style={[typography.labelMd, { color: colors.onSurfaceVariant, width: 24 }]}>
+        {set.set_number}
+      </Text>
+      <Text style={[typography.titleMd, { color: colors.onSurface, flex: 1 }]}>
+        {set.weight_kg} kg × {set.reps} reps
+      </Text>
+      {set.rpe && (
+        <Text style={[typography.labelMd, { color: colors.secondary, marginRight: 8 }]}>
+          RPE {set.rpe}
+        </Text>
+      )}
+      <TouchableOpacity onPress={() => setEditing(true)} style={styles.editBtn}>
+        <Ionicons name="pencil-outline" size={16} color={colors.onSurfaceVariant} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: session, isLoading } = useSession(id);
+  const { mutateAsync: updateSet, isPending } = useUpdateWorkoutSet(id);
   const [shareVisible, setShareVisible] = useState(false);
 
   if (isLoading) {
@@ -52,6 +142,15 @@ export default function SessionDetailScreen() {
   const sets = ((session as any)?.workout_sets ?? []) as WorkoutSet[];
   const grouped = groupSetsByExercise(sets);
   const totalVolume = sets.reduce((acc, s) => acc + s.weight_kg * s.reps, 0);
+
+  const handleSaveSet = async (setId: string, weight_kg: number, reps: number) => {
+    try {
+      await updateSet({ id: setId, weight_kg, reps });
+      Toast.show({ type: 'success', text1: 'Serie actualizada' });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Error al guardar' });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -104,19 +203,12 @@ export default function SessionDetailScreen() {
               {exSets
                 .sort((a, b) => a.set_number - b.set_number)
                 .map((s) => (
-                  <View key={s.id} style={styles.setRow}>
-                    <Text style={[typography.labelMd, { color: colors.onSurfaceVariant, width: 24 }]}>
-                      {s.set_number}
-                    </Text>
-                    <Text style={[typography.titleMd, { color: colors.onSurface, flex: 1 }]}>
-                      {s.weight_kg} kg × {s.reps} reps
-                    </Text>
-                    {s.rpe && (
-                      <Text style={[typography.labelMd, { color: colors.secondary }]}>
-                        RPE {s.rpe}
-                      </Text>
-                    )}
-                  </View>
+                  <EditableSetRow
+                    key={s.id}
+                    set={s}
+                    onSave={handleSaveSet}
+                    isSaving={isPending}
+                  />
                 ))}
             </View>
           );
@@ -177,6 +269,36 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: colors.outlineVariant + '20',
+  },
+  setRowEditing: {
+    backgroundColor: colors.surfaceHighest,
+    borderRadius: 10,
+    borderBottomWidth: 0,
+    paddingHorizontal: 8,
+    marginVertical: 2,
+  },
+  editInput: {
+    backgroundColor: colors.surfaceLow,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    color: colors.onSurface,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    textAlign: 'center',
+    minWidth: 56,
+  },
+  editActions: { flexDirection: 'row', gap: 4 },
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editBtn: {
+    padding: 6,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

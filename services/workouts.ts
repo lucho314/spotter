@@ -88,6 +88,17 @@ export async function deleteSession(id: string): Promise<void> {
   if (count === 0) throw new Error('No se pudo eliminar la sesión. Verificá los permisos.');
 }
 
+export async function updateWorkoutSet(
+  id: string,
+  payload: { weight_kg: number; reps: number }
+): Promise<void> {
+  const { error } = await supabase
+    .from('workout_sets')
+    .update(payload)
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function getInProgressSession(userId: string): Promise<WorkoutSession | null> {
   const { data, error } = await supabase
     .from('workout_sessions')

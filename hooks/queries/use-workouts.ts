@@ -5,6 +5,7 @@ import {
   cancelSession,
   deleteSession,
   insertSet,
+  updateWorkoutSet,
   getSessions,
   getSessionById,
 } from '@/services/workouts';
@@ -73,5 +74,16 @@ export function useDeleteSession() {
 export function useInsertSet() {
   return useMutation({
     mutationFn: insertSet,
+  });
+}
+
+export function useUpdateWorkoutSet(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, weight_kg, reps }: { id: string; weight_kg: number; reps: number }) =>
+      updateWorkoutSet(id, { weight_kg, reps }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+    },
   });
 }
