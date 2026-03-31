@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,11 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Sharing from 'expo-sharing';
-import ViewShot from 'react-native-view-shot';
 import Toast from 'react-native-toast-message';
 
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import { shareWorkoutAsPdf } from '@/services/workout-export';
-import { WorkoutStoryCard, STORY_WIDTH, STORY_HEIGHT } from './workout-story-card';
+import { shareWorkoutAsPdf, shareWorkoutAsStory } from '@/services/workout-export';
 
 interface ShareModalSession {
   started_at: string;
@@ -39,73 +36,31 @@ interface WorkoutShareModalProps {
   session: ShareModalSession;
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
-
-function formatDuration(start: string, end?: string | null) {
-  if (!end) return '—';
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  const min = Math.floor(ms / 60000);
-  return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h ${min % 60}min`;
-}
-
-function groupExercises(sets: ShareModalSession['workout_sets']) {
-  if (!sets) return [];
-  const map = new Map<number, { name: string; sets: Array<{ set_number: number; weight_kg: number; reps: number }> }>();
-  for (const s of sets) {
-    if (!map.has(s.exercise_id)) {
-      map.set(s.exercise_id, { name: s.exercises?.name ?? 'Ejercicio', sets: [] });
-    }
-    map.get(s.exercise_id)!.sets.push({ set_number: s.set_number, weight_kg: s.weight_kg, reps: s.reps });
-  }
-  return Array.from(map.values());
-}
-
 export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareModalProps) {
   const [loadingPdf, setLoadingPdf] = useState(false);
-  const [loadingImage, setLoadingImage] = useState(false);
-  const viewShotRef = useRef<ViewShot>(null);
-
-  const sets = session.workout_sets ?? [];
-  const totalVolume = sets.reduce((acc, s) => acc + s.weight_kg * s.reps, 0);
-  const exercises = groupExercises(session.workout_sets);
-
-  const storyProps = {
-    routineName: session.routines?.name ?? 'Entrenamiento libre',
-    date: formatDate(session.started_at),
-    duration: formatDuration(session.started_at, session.completed_at),
-    totalVolume,
-    exercises,
-  };
+  const [loadingStory, setLoadingStory] = useState(false);
 
   const handleSharePdf = async () => {
     setLoadingPdf(true);
     try {
       await shareWorkoutAsPdf(session);
       onClose();
-    } catch (e) {
+    } catch {
       Toast.show({ type: 'error', text1: 'Error al generar el PDF' });
     } finally {
       setLoadingPdf(false);
     }
   };
 
-  const handleShareImage = async () => {
-    setLoadingImage(true);
+  const handleShareStory = async () => {
+    setLoadingStory(true);
     try {
-      const uri = await viewShotRef.current!.capture!();
-      await Sharing.shareAsync(uri, {
-        mimeType: 'image/png',
-        dialogTitle: 'Compartir historia',
-        UTI: 'public.png',
-      });
+      await shareWorkoutAsStory(session);
       onClose();
-    } catch (e) {
+    } catch {
       Toast.show({ type: 'error', text1: 'Error al generar la imagen' });
     } finally {
-      setLoadingImage(false);
+      setLoadingStory(false);
     }
   };
 
@@ -117,32 +72,13 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      {/* Dimmed overlay */}
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay} />
       </TouchableWithoutFeedback>
 
-      {/* Hidden ViewShot for image capture — rendered off-screen */}
-      <View style={styles.offscreen} pointerEvents="none">
-        <ViewShot
-          ref={viewShotRef}
-          options={{
-            format: 'png',
-            quality: 1,
-            width: STORY_WIDTH,
-            height: STORY_HEIGHT,
-          }}
-        >
-          <WorkoutStoryCard {...storyProps} />
-        </ViewShot>
-      </View>
-
-      {/* Bottom sheet */}
       <View style={styles.sheet}>
-        {/* Handle */}
         <View style={styles.handle} />
 
-        {/* Title */}
         <View style={styles.titleRow}>
           <View>
             <Text style={[typography.titleMd, { color: colors.onSurface }]}>
@@ -157,17 +93,16 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
           </TouchableOpacity>
         </View>
 
-        {/* Options */}
         <View style={styles.optionsRow}>
           {/* PDF */}
           <TouchableOpacity
             style={styles.optionCard}
             onPress={handleSharePdf}
-            disabled={loadingPdf || loadingImage}
+            disabled={loadingPdf || loadingStory}
             activeOpacity={0.7}
           >
             {loadingPdf ? (
-              <ActivityIndicator color={colors.primaryContainer} />
+              <ActivityIndicator color={colors.primaryContainer} size="large" />
             ) : (
               <View style={[styles.optionIcon, { backgroundColor: 'rgba(209,252,0,0.1)' }]}>
                 <Ionicons name="document-text-outline" size={28} color={colors.primaryContainer} />
@@ -181,15 +116,15 @@ export function WorkoutShareModal({ visible, onClose, session }: WorkoutShareMod
             </Text>
           </TouchableOpacity>
 
-          {/* Image / Story */}
+          {/* Historia */}
           <TouchableOpacity
             style={[styles.optionCard, { borderColor: 'rgba(0,227,253,0.15)' }]}
-            onPress={handleShareImage}
-            disabled={loadingPdf || loadingImage}
+            onPress={handleShareStory}
+            disabled={loadingPdf || loadingStory}
             activeOpacity={0.7}
           >
-            {loadingImage ? (
-              <ActivityIndicator color={colors.secondary} />
+            {loadingStory ? (
+              <ActivityIndicator color={colors.secondary} size="large" />
             ) : (
               <View style={[styles.optionIcon, { backgroundColor: 'rgba(0,227,253,0.1)' }]}>
                 <Ionicons name="phone-portrait-outline" size={28} color={colors.secondary} />
@@ -212,11 +147,6 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  offscreen: {
-    position: 'absolute',
-    top: -10000,
-    left: 0,
   },
   sheet: {
     backgroundColor: colors.surfaceContainer,
