@@ -10,7 +10,6 @@ import {
   Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,17 +25,11 @@ import { useWorkoutStore } from '@/stores/workout-store';
 import { saveWorkout, queueWorkout, PendingWorkout } from '@/services/workout-sync';
 
 function ExerciseVideo({ uri }: { uri: string }) {
-  const player = useVideoPlayer({ uri }, (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
-  });
   return (
-    <VideoView
-      player={player}
+    <Image
+      source={{ uri }}
       style={styles.exerciseGif}
       contentFit="contain"
-      nativeControls={false}
     />
   );
 }
