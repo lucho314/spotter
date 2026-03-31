@@ -22,14 +22,21 @@ import { SessionTimer } from '@/components/workout/session-timer';
 import { RestTimer } from '@/components/workout/rest-timer';
 import { SetRow } from '@/components/workout/set-row';
 import { useWorkoutStore } from '@/stores/workout-store';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { saveWorkout, queueWorkout, PendingWorkout } from '@/services/workout-sync';
 
 function ExerciseVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer({ uri }, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
   return (
-    <Image
-      source={{ uri }}
+    <VideoView
+      player={player}
       style={styles.exerciseGif}
       contentFit="contain"
+      nativeControls={false}
     />
   );
 }
