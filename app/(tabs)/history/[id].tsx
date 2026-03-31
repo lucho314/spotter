@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,7 +16,12 @@ import Toast from 'react-native-toast-message';
 
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import { useSession, useUpdateWorkoutSet } from '@/hooks/queries/use-workouts';
+import {
+  useSession,
+  useUpdateWorkoutSet,
+  useDeleteWorkoutSet,
+  useAddWorkoutSet,
+} from '@/hooks/queries/use-workouts';
 import { WorkoutSet } from '@/types';
 import { WorkoutShareModal } from '@/components/workout/workout-share-modal';
 
@@ -39,10 +45,11 @@ function formatDuration(start: string, end: string | null) {
 interface EditableSetRowProps {
   set: WorkoutSet;
   onSave: (id: string, weight_kg: number, reps: number) => Promise<void>;
+  onDelete: (id: string) => void;
   isSaving: boolean;
 }
 
-function EditableSetRow({ set, onSave, isSaving }: EditableSetRowProps) {
+function EditableSetRow({ set, onSave, onDelete, isSaving }: EditableSetRowProps) {
   const [editing, setEditing] = useState(false);
   const [weight, setWeight] = useState(String(set.weight_kg));
   const [reps, setReps] = useState(String(set.reps));
@@ -115,8 +122,11 @@ function EditableSetRow({ set, onSave, isSaving }: EditableSetRowProps) {
           RPE {set.rpe}
         </Text>
       )}
-      <TouchableOpacity onPress={() => setEditing(true)} style={styles.editBtn}>
+      <TouchableOpacity onPress={() => setEditing(true)} style={styles.iconBtn}>
         <Ionicons name="pencil-outline" size={16} color={colors.onSurfaceVariant} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onDelete(set.id)} style={styles.iconBtn}>
+        <Ionicons name="trash-outline" size={16} color={colors.error} />
       </TouchableOpacity>
     </View>
   );
@@ -126,7 +136,9 @@ export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: session, isLoading } = useSession(id);
-  const { mutateAsync: updateSet, isPending } = useUpdateWorkoutSet(id);
+  const { mutateAsync: updateSet, isPending: isSaving } = useUpdateWorkoutSet(id);
+  const { mutateAsync: deleteSet } = useDeleteWorkoutSet(id);
+  const { mutateAsync: addSet, isPending: isAdding } = useAddWorkoutSet(id);
   const [shareVisible, setShareVisible] = useState(false);
 
   if (isLoading) {
@@ -149,6 +161,40 @@ export default function SessionDetailScreen() {
       Toast.show({ type: 'success', text1: 'Serie actualizada' });
     } catch {
       Toast.show({ type: 'error', text1: 'Error al guardar' });
+    }
+  };
+
+  const handleDeleteSet = (setId: string) => {
+    Alert.alert('Eliminar serie', '¿Seguro que querés eliminar esta serie?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteSet(setId);
+            Toast.show({ type: 'success', text1: 'Serie eliminada' });
+          } catch {
+            Toast.show({ type: 'error', text1: 'Error al eliminar' });
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleAddSet = async (exerciseId: number, exSets: WorkoutSet[]) => {
+    const lastSet = exSets[exSets.length - 1];
+    try {
+      await addSet({
+        session_id: id,
+        exercise_id: exerciseId,
+        set_number: lastSet.set_number + 1,
+        weight_kg: lastSet.weight_kg,
+        reps: lastSet.reps,
+      });
+      Toast.show({ type: 'success', text1: 'Serie agregada' });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Error al agregar' });
     }
   };
 
@@ -195,21 +241,37 @@ export default function SessionDetailScreen() {
 
         {Array.from(grouped.entries()).map(([exerciseId, exSets]) => {
           const exercise = (exSets[0] as any)?.exercises;
+          const sorted = exSets.sort((a, b) => a.set_number - b.set_number);
           return (
             <View key={exerciseId} style={styles.exerciseBlock}>
               <Text style={[typography.titleMd, { color: colors.onSurface, marginBottom: 8 }]}>
                 {exercise?.name ?? 'Ejercicio'}
               </Text>
-              {exSets
-                .sort((a, b) => a.set_number - b.set_number)
-                .map((s) => (
-                  <EditableSetRow
-                    key={s.id}
-                    set={s}
-                    onSave={handleSaveSet}
-                    isSaving={isPending}
-                  />
-                ))}
+              {sorted.map((s) => (
+                <EditableSetRow
+                  key={s.id}
+                  set={s}
+                  onSave={handleSaveSet}
+                  onDelete={handleDeleteSet}
+                  isSaving={isSaving}
+                />
+              ))}
+              <TouchableOpacity
+                style={styles.addSetBtn}
+                onPress={() => handleAddSet(exerciseId, sorted)}
+                disabled={isAdding}
+              >
+                {isAdding ? (
+                  <ActivityIndicator size="small" color={colors.secondary} />
+                ) : (
+                  <>
+                    <Ionicons name="add" size={16} color={colors.secondary} />
+                    <Text style={[typography.labelMd, { color: colors.secondary }]}>
+                      Agregar serie
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           );
         })}
@@ -262,6 +324,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainer,
     borderRadius: 20,
     padding: 16,
+    gap: 2,
   },
   setRow: {
     flexDirection: 'row',
@@ -297,8 +360,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editBtn: {
-    padding: 6,
+  iconBtn: { padding: 6 },
+  addSetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.secondary + '40',
+    borderStyle: 'dashed',
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

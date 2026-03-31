@@ -99,6 +99,30 @@ export async function updateWorkoutSet(
   if (error) throw error;
 }
 
+export async function deleteWorkoutSet(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('workout_sets')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function addWorkoutSet(payload: {
+  session_id: string;
+  exercise_id: number;
+  set_number: number;
+  weight_kg: number;
+  reps: number;
+}): Promise<WorkoutSet> {
+  const { data, error } = await supabase
+    .from('workout_sets')
+    .insert({ ...payload, completed_at: new Date().toISOString() })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function getInProgressSession(userId: string): Promise<WorkoutSession | null> {
   const { data, error } = await supabase
     .from('workout_sessions')

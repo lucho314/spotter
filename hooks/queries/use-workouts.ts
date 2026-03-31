@@ -6,6 +6,8 @@ import {
   deleteSession,
   insertSet,
   updateWorkoutSet,
+  deleteWorkoutSet,
+  addWorkoutSet,
   getSessions,
   getSessionById,
 } from '@/services/workouts';
@@ -82,6 +84,27 @@ export function useUpdateWorkoutSet(sessionId: string) {
   return useMutation({
     mutationFn: ({ id, weight_kg, reps }: { id: string; weight_kg: number; reps: number }) =>
       updateWorkoutSet(id, { weight_kg, reps }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+    },
+  });
+}
+
+export function useDeleteWorkoutSet(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteWorkoutSet(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
+    },
+  });
+}
+
+export function useAddWorkoutSet(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { session_id: string; exercise_id: number; set_number: number; weight_kg: number; reps: number }) =>
+      addWorkoutSet(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
     },
