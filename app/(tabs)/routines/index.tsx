@@ -151,6 +151,7 @@ export default function RoutinesScreen() {
           renderItem={({ item }) => (
             <RoutineCard
               routine={item}
+              exerciseCount={item.routine_exercises?.length ?? 0}
               onPress={() => router.push(`/(tabs)/routines/${item.id}`)}
               onLongPress={() => handleArchive(item)}
             />

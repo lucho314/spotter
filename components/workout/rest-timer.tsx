@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 
@@ -10,21 +11,53 @@ interface RestTimerProps {
   onSkip: () => void;
 }
 
-export function RestTimer({ seconds, onFinish, onSkip }: RestTimerProps) {
-  const [remaining, setRemaining] = useState(seconds);
+async function playBeep() {
+  try {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    const { sound } = await Audio.Sound.createAsync(
+      require('@/assets/sounds/beep.wav')
+    );
+    await sound.playAsync();
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+    });
+  } catch {
+    // ignore audio errors silently
+  }
+}
 
+export function RestTimer({ seconds, onFinish, onSkip }: RestTimerProps) {
+  const endTimeRef = useRef(Date.now() + seconds * 1000);
+  const [remaining, setRemaining] = useState(seconds);
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
+
+  // Reset end time when seconds prop changes (new rest period)
   useEffect(() => {
+    endTimeRef.current = Date.now() + seconds * 1000;
     setRemaining(seconds);
   }, [seconds]);
 
   useEffect(() => {
-    if (remaining <= 0) {
-      onFinish();
-      return;
-    }
-    const timer = setTimeout(() => setRemaining((r) => r - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [remaining, onFinish]);
+    const update = () => {
+      const left = Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000));
+      setRemaining(left);
+      if (left <= 0) {
+        playBeep();
+        onFinishRef.current();
+      }
+    };
+
+    const interval = setInterval(update, 500);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') update();
+    });
+
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, []);
 
   return (
     <View style={styles.container}>

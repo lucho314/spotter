@@ -4,7 +4,7 @@ import { Routine, RoutineExercise } from '@/types';
 export async function getRoutines(userId: string): Promise<Routine[]> {
   const { data, error } = await supabase
     .from('routines')
-    .select('*')
+    .select('*, routine_exercises(id)')
     .eq('user_id', userId)
     .eq('is_archived', false)
     .order('created_at', { ascending: false });

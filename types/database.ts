@@ -66,6 +66,7 @@ export interface Routine {
   source_template_id: string | null;
   created_at: string;
   updated_at: string;
+  routine_exercises?: { id: string }[];
 }
 
 export interface RoutineTemplate {

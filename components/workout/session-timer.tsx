@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { AppState, Text } from 'react-native';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 
@@ -20,10 +20,15 @@ export function SessionTimer({ startedAt }: SessionTimerProps) {
   const [elapsed, setElapsed] = useState(Date.now() - startedAt);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(Date.now() - startedAt);
-    }, 1000);
-    return () => clearInterval(interval);
+    const update = () => setElapsed(Date.now() - startedAt);
+    const interval = setInterval(update, 1000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') update();
+    });
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
   }, [startedAt]);
 
   return (
