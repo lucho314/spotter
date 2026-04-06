@@ -8,6 +8,9 @@ import {
   addExerciseToRoutine,
   removeExerciseFromRoutine,
   updateRoutineExercise,
+  createRoutineDay,
+  updateRoutineDay,
+  deleteRoutineDay,
 } from '@/services/routines';
 import { useAuth } from '@/lib/auth';
 
@@ -90,8 +93,34 @@ export function useRemoveExercise(routineId: string) {
 export function useUpdateRoutineExercise(routineId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { target_sets?: number; target_reps?: number; rest_seconds?: number } }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: { day_number?: number; target_sets?: number; target_reps?: number; rest_seconds?: number } }) =>
       updateRoutineExercise(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: routineKeys.detail(routineId) }),
+  });
+}
+
+export function useCreateRoutineDay(routineId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { day_number: number; name: string }) =>
+      createRoutineDay({ ...payload, routine_id: routineId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: routineKeys.detail(routineId) }),
+  });
+}
+
+export function useUpdateRoutineDay(routineId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      updateRoutineDay(id, { name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: routineKeys.detail(routineId) }),
+  });
+}
+
+export function useDeleteRoutineDay(routineId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteRoutineDay(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: routineKeys.detail(routineId) }),
   });
 }

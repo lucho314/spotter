@@ -19,6 +19,21 @@ import { StatsCard } from '@/components/dashboard/stats-card';
 import { useAuth } from '@/lib/auth';
 import { useDashboardStats } from '@/hooks/queries/use-dashboard';
 import { useRoutines } from '@/hooks/queries/use-routines';
+import { Routine, RoutineDay } from '@/types';
+
+const WEEK_ORDER: Record<string, number> = {
+  Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6, Domingo: 7,
+};
+
+function sortByDay(routines: Routine[]): Routine[] {
+  return [...routines].sort((a, b) => {
+    const daysA = (a.routine_days ?? []) as RoutineDay[];
+    const daysB = (b.routine_days ?? []) as RoutineDay[];
+    const orderA = daysA.length ? Math.min(...daysA.map((d) => WEEK_ORDER[d.name] ?? 99)) : 99;
+    const orderB = daysB.length ? Math.min(...daysB.map((d) => WEEK_ORDER[d.name] ?? 99)) : 99;
+    return orderA - orderB;
+  });
+}
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -111,17 +126,29 @@ export default function DashboardScreen() {
                 <Text style={[typography.labelLg, { color: colors.secondary }]}>Ver todas</Text>
               </TouchableOpacity>
             </View>
-            {routines!.slice(0, 3).map((r) => (
-              <TouchableOpacity
-                key={r.id}
-                style={styles.quickRoutine}
-                onPress={() => router.push(`/(tabs)/routines/${r.id}`)}
-                activeOpacity={0.8}
-              >
-                <Text style={[typography.titleMd, { color: colors.onSurface }]}>{r.name}</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceVariant} />
-              </TouchableOpacity>
-            ))}
+            {sortByDay(routines!).slice(0, 3).map((r) => {
+              const days = ((r.routine_days ?? []) as RoutineDay[]).sort(
+                (a, b) => (WEEK_ORDER[a.name] ?? 99) - (WEEK_ORDER[b.name] ?? 99)
+              );
+              return (
+                <TouchableOpacity
+                  key={r.id}
+                  style={styles.quickRoutine}
+                  onPress={() => router.push(`/(tabs)/routines/${r.id}`)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[typography.titleMd, { color: colors.onSurface }]}>{r.name}</Text>
+                    {days.length > 0 && (
+                      <Text style={[typography.labelMd, { color: colors.primary, marginTop: 2 }]}>
+                        {days.map((d) => d.name).join(' · ')}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 

@@ -18,7 +18,21 @@ import { typography } from '@/constants/typography';
 import { Button } from '@/components/ui/button';
 import { RoutineCard } from '@/components/routines/routine-card';
 import { useRoutines, useArchiveRoutine } from '@/hooks/queries/use-routines';
-import { Routine } from '@/types';
+import { Routine, RoutineDay } from '@/types';
+
+const WEEK_ORDER: Record<string, number> = {
+  Lunes: 1, Martes: 2, Miércoles: 3, Jueves: 4, Viernes: 5, Sábado: 6, Domingo: 7,
+};
+
+function firstDayOrder(routine: Routine): number {
+  const days = (routine.routine_days ?? []) as RoutineDay[];
+  if (!days.length) return 99;
+  return Math.min(...days.map((d) => WEEK_ORDER[d.name] ?? 99));
+}
+
+function sortByDay(routines: Routine[]): Routine[] {
+  return [...routines].sort((a, b) => firstDayOrder(a) - firstDayOrder(b));
+}
 
 export default function RoutinesScreen() {
   const router = useRouter();
@@ -70,6 +84,12 @@ export default function RoutinesScreen() {
             style={[styles.iconButton, showImport && styles.iconButtonActive]}
           >
             <Ionicons name="download-outline" size={20} color={showImport ? colors.onPrimary : colors.primaryContainer} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/routines/import-image')}
+            style={styles.iconButton}
+          >
+            <Ionicons name="sparkles-outline" size={20} color={colors.primaryContainer} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/routines/create')}
@@ -145,7 +165,7 @@ export default function RoutinesScreen() {
         </View>
       ) : (
         <FlatList
-          data={routines}
+          data={sortByDay(routines!)}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (

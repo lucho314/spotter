@@ -1,18 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 
 
 There are no test scripts configured. The app uses Expo, so testing requires a device or simulator.
-
-## Compilar y correr en Android
-
-Usa el JDK de Android Studio para evitar incompatibilidad con JDK 25:
-
-```bash
-JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" PATH="/c/Program Files/Android/Android Studio/jbr/bin:$PATH" npx expo run:android
-```
 
 Environment variables required in `.env`:
 - `EXPO_PUBLIC_SUPABASE_URL`

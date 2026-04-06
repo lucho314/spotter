@@ -67,6 +67,7 @@ export interface Routine {
   created_at: string;
   updated_at: string;
   routine_exercises?: { id: string }[];
+  routine_days?: RoutineDay[];
 }
 
 export interface RoutineTemplate {
@@ -105,11 +106,19 @@ export interface TemplateDayExercise {
   exercises?: Exercise;
 }
 
+export interface RoutineDay {
+  id: string;
+  routine_id: string;
+  day_number: number;
+  name: string;
+}
+
 export interface RoutineExercise {
   id: string;
   routine_id: string;
   exercise_id: number;
   sort_order: number;
+  day_number: number;
   target_sets: number;
   target_reps: number;
   rest_seconds: number;

@@ -19,7 +19,7 @@ export async function shareRoutine(routineId: string, sharedBy: string) {
 export async function getSharedRoutineByCode(code: string) {
   const { data, error } = await supabase
     .from('shared_routines')
-    .select('*, routines(*, routine_exercises(*, exercises(*, muscle_groups(*))))')
+    .select('*, routines(*, routine_days(*), routine_exercises(*, exercises(*, muscle_groups(*))))')
     .eq('share_code', code)
     .eq('is_active', true)
     .maybeSingle();
@@ -52,12 +52,25 @@ export async function importRoutine(shareCode: string, userId: string) {
         routine_id: newRoutine.id,
         exercise_id: re.exercise_id,
         sort_order: re.sort_order,
+        day_number: re.day_number ?? 1,
         target_sets: re.target_sets,
         target_reps: re.target_reps,
         rest_seconds: re.rest_seconds,
       }))
     );
     if (exError) throw exError;
+  }
+
+  const days = sourceRoutine.routine_days ?? [];
+  if (days.length > 0) {
+    const { error: daysError } = await supabase.from('routine_days').insert(
+      days.map((d: any) => ({
+        routine_id: newRoutine.id,
+        day_number: d.day_number,
+        name: d.name,
+      }))
+    );
+    if (daysError) throw daysError;
   }
 
   return newRoutine;
